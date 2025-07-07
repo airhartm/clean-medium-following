@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeatFreak for Medium</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h2>🧹 NeatFreak for Medium</h2>
+    <p id="status">Checking environment...</p>
+    <div id="buttons">
+        <button id="goToMedium" style="display:none;">Go to Medium.com</button>
+        <button id="startScan">Start Scan</button>
+        <button id="viewLast">View Last Results</button>
+        <button id="exportCsv">Download CSV</button>
+        <button id="helpButton">Show Help</button>
+        <button id="closeButton">Close</button>
+    </div>
+    <div id="helpSection" style="display: none;">
+        <p>NeatFreak helps you audit your Medium connections. Works best on your "Following" page. For CSV: open in Excel or Google Sheets and sort easily.</p>
+    </div>
+    <div id="results"></div>
+<script type="module" src="popup.js"></script>
+</body>
+</html>
