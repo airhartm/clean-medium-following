@@ -6,8 +6,8 @@ export async function checkEnvironment() {
             const url = tabs[0]?.url || "";
             const isMedium = url.includes("medium.com");
 
-            // Detect Following page using robust regex:
-            const followingRegex = /^https:\/\/medium\.com\/@[^\/?#]+\/following\/?$/;
+            // Detect Following page for both /@username/following and /me/following:
+            const followingRegex = /^https:\/\/medium\.com\/(@[^\/?#]+|me)\/following\/?$/;
             const isFollowingPage = followingRegex.test(url);
 
             console.log("🌎 URL checked:", url, "| isMedium:", isMedium, "| isFollowingPage:", isFollowingPage);

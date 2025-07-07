@@ -115,12 +115,25 @@ export async function startScan(env) {
     resultsContainer.innerHTML = html;
 
     // Save results for CSV export
-    chrome.storage.local.set({ lastResults: html }, () => {
-        if (DEBUG) console.log("✅ Results saved for CSV export.");
+    chrome.storage.local.set({
+        lastResults: html,
+        lastResultsTimestamp: Date.now()
+    }, () => {
+        if (DEBUG) console.log("✅ Results and timestamp saved for CSV export.");
     });
-
     updateStatus(`✅ Scan complete: ${total} profiles checked.`);
     if (DEBUG) console.log("✅ Scan complete with results:", results);
+
+    // Update UI state after scan completion
+    const startScanBtn = document.getElementById("startScan");
+    const clearDataBtn = document.getElementById("clearData");
+    const exportCsvBtn = document.getElementById("exportCsv");
+    const status = document.getElementById("status");
+
+    if (startScanBtn) startScanBtn.style.display = "none";
+    if (clearDataBtn) clearDataBtn.style.display = "inline-block";
+    if (exportCsvBtn) exportCsvBtn.style.display = "inline-block";
+    if (status) status.textContent = "⚠️ Scan complete. Please clear data before rescanning. Recommended: scan only once daily.";
 }
 
 /**
