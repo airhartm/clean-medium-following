@@ -5,6 +5,8 @@
   "description": "Easily audit and tidy your Medium 'following' list: The people that you follow. Who has stopped posting, who is posting the most?",
   "permissions": ["activeTab", "storage", "tabs", "scripting"],
   "host_permissions": ["https://medium.com/*", "https://*/feed/*"],
+  "homepage_url": "https://neatfreak.kgraph.pro/",
+  "privacy_policy": "https://neatfreak.kgraph.pro/PRIVACY-POLICY",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
