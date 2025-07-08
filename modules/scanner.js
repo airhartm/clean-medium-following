@@ -4,6 +4,63 @@
 import { saveLastResults } from "./storage.js";
 
 const DEBUG = true; // Toggle false for release
+const FREE_USER_LIMIT = 250; // Free version limit
+const BATCH_SIZE = 10; // Process users in batches
+const BATCH_DELAY = 3000; // 3 second delay between batches
+const REQUEST_DELAY = 1500; // 1.5 seconds between individual requests
+
+/**
+ * Fetch user RSS feed and extract last post date, 90-day post count, and author name.
+ */
+async function fetchUserActivity(profileUrl) {
+    try {
+        const url = new URL(profileUrl);
+        const path = url.pathname.split('?')[0];
+        let rssUrl = "";
+
+        if (path.startsWith("/@")) {
+            const username = path.split("/")[1];
+            rssUrl = `https://medium.com/feed/@${username}`;
+        } else {
+            const slug = path.split("/")[1];
+            rssUrl = `https://medium.com/feed/${slug}`;
+        }
+
+        const response = await fetch(rssUrl);
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, "text/xml");
+        const items = xml.querySelectorAll("item");
+
+        let posts90d = 0;
+        let lastPostDate = null;
+        let authorName = null;
+        const now = new Date();
+
+        // Extract author name from the channel title
+        const channelTitle = xml.querySelector("channel title");
+        if (channelTitle) {
+            let rawName = channelTitle.textContent.trim();
+            // Remove "Stories by" prefix, " – Medium" suffix, and " on Medium" suffix
+            authorName = rawName
+                .replace(/^Stories by\s+/i, '')
+                .replace(/\s+–\s+Medium$/i, '')
+                .replace(/\s+on\s+Medium$/i, '')
+                .trim();
+        }
+
+        items.forEach(item => {
+            const pubDate = new Date(item.querySelector("pubDate").textContent);
+            if (!lastPostDate || pubDate > lastPostDate) lastPostDate = pubDate;
+            if ((now - pubDate) / (1000 * 60 * 60 * 24) <= 90) posts90d++;
+        });
+
+        return { lastPostDate, posts90d, authorName };
+    } catch (e) {
+        console.error(`❌ Error fetching feed for ${profileUrl}:`, e);
+        return { lastPostDate: null, posts90d: 0, authorName: null };
+    }
+}
 
 /**
  * Wait for followedUsers array to be available in storage.
@@ -39,6 +96,7 @@ export function waitForFollowedUsers(timeout = 5000, interval = 500) {
         check();
     });
 }
+
 /**
  * Start scan using environment validation.
  */
@@ -67,50 +125,99 @@ export async function startScan(env) {
         return;
     }
 
-    const total = followedUsers.length;
-    let count = 0;
+    // Apply user limit for free version
+    const totalUsers = followedUsers.length;
+    const usersToProcess = followedUsers.slice(0, FREE_USER_LIMIT);
+    const limitMessage = totalUsers > FREE_USER_LIMIT ? 
+        ` (processing first ${FREE_USER_LIMIT} of ${totalUsers} users - upgrade for unlimited scanning)` : "";
+
+    updateStatus(`🔄 Scanning ${usersToProcess.length} users${limitMessage}...`);
+
     const results = [];
+    let processed = 0;
 
-    for (const profileUrl of followedUsers) {
-        count++;
-        updateStatus(`🔍 Scanning ${count} of ${total}...`);
+    // Process users in batches
+    for (let batchStart = 0; batchStart < usersToProcess.length; batchStart += BATCH_SIZE) {
+        const batch = usersToProcess.slice(batchStart, Math.min(batchStart + BATCH_SIZE, usersToProcess.length));
+        const batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(usersToProcess.length / BATCH_SIZE);
 
-        const { lastPostDate, posts90d } = await fetchUserActivity(profileUrl);
-        const daysAgo = lastPostDate ? daysSince(lastPostDate) : "N/A";
-        const lastPost = lastPostDate ? lastPostDate.toISOString().split("T")[0] : "None";
+        updateStatus(`🔄 Processing batch ${batchNum}/${totalBatches} (${processed + 1}-${processed + batch.length} of ${usersToProcess.length})...`);
 
-        let activity = "⚫ Quiet";
-        if (daysAgo !== "N/A") {
-            if (daysAgo <= 30) activity = "🟩 Active";
-            else if (daysAgo <= 90) activity = "🟨 Occasional";
+        // Process current batch
+        for (const profileUrl of batch) {
+            processed++;
+            updateStatus(`🔍 Scanning ${processed} of ${usersToProcess.length}... (${Math.round((processed/usersToProcess.length) * 100)}%)${limitMessage}`);
+
+            const { lastPostDate, posts90d, authorName } = await fetchUserActivity(profileUrl);
+            const daysAgo = lastPostDate ? daysSince(lastPostDate) : "N/A";
+            const lastPost = lastPostDate ? lastPostDate.toISOString().split("T")[0] : "None";
+
+            let activity = "⚫ Quiet";
+            if (daysAgo !== "N/A") {
+                if (daysAgo <= 30) activity = "🟩 Active";
+                else if (daysAgo <= 90) activity = "🟨 Occasional";
+            }
+
+            results.push({ profileUrl, lastPost, posts90d, activity, authorName });
+
+            // Delay between individual requests
+            if (processed < usersToProcess.length) {
+                await new Promise(res => setTimeout(res, REQUEST_DELAY));
+            }
         }
 
-        results.push({ profileUrl, lastPost, posts90d, activity });
-
-        await new Promise(res => setTimeout(res, 700)); // polite throttling
+        // Delay between batches (except after the last batch)
+        if (batchStart + BATCH_SIZE < usersToProcess.length) {
+            updateStatus(`⏸️ Waiting ${BATCH_DELAY/1000}s between batches to respect Medium's servers...`);
+            await new Promise(res => setTimeout(res, BATCH_DELAY));
+        }
     }
 
-    // Sort by most recent activity
+    // Sort by activity level first, then by most recent post date
     results.sort((a, b) => {
+        const activityPriority = {
+            "🟩 Active": 1,
+            "🟨 Occasional": 2,
+            "⚫ Quiet": 3
+        };
+        
+        const aPriority = activityPriority[a.activity] || 4;
+        const bPriority = activityPriority[b.activity] || 4;
+        
+        if (aPriority !== bPriority) {
+            return aPriority - bPriority;
+        }
+        
+        if (a.lastPost === "None" && b.lastPost === "None") return 0;
         if (a.lastPost === "None") return 1;
         if (b.lastPost === "None") return -1;
         return new Date(b.lastPost) - new Date(a.lastPost);
     });
 
-    // Build HTML table for display
+    // Build HTML table AFTER sorting
     let html = `
         <table>
-            <tr><th>Username</th><th>Last Post</th><th>Posts (90d)</th><th>Activity</th></tr>`;
+            <tr><th>Author</th><th>Last Post</th><th>Posts (90 days)</th><th>Activity</th></tr>`;
     results.forEach(r => {
-        const username = r.profileUrl.match(/medium\.com\/(@[a-zA-Z0-9_.-]+)/)?.[1] || r.profileUrl;
+        const displayName = r.authorName || r.profileUrl.match(/medium\.com\/(@[a-zA-Z0-9_.-]+)/)?.[1] || r.profileUrl;
         html += `<tr>
-            <td><a href="${r.profileUrl}" target="_blank">${username}</a></td>
+            <td><a href="${r.profileUrl}" target="_blank">${displayName}</a></td>
             <td>${r.lastPost}</td>
             <td>${r.posts90d}</td>
             <td>${r.activity}</td>
         </tr>`;
     });
     html += `</table>`;
+
+    // Add upgrade message if user hit the limit
+    if (totalUsers > FREE_USER_LIMIT) {
+        html += `<p style="margin-top: 15px; padding: 10px; background-color: #f0f8ff; border: 1px solid #0066cc; border-radius: 5px;">
+            <strong>📈 Want to scan all ${totalUsers} users?</strong><br>
+            Upgrade to NeatFreak Pro for unlimited scanning, advanced filtering, and priority support.
+            <a href="#" style="color: #0066cc;">Learn more about Pro features</a>
+        </p>`;
+    }
 
     resultsContainer.innerHTML = html;
 
@@ -121,7 +228,12 @@ export async function startScan(env) {
     }, () => {
         if (DEBUG) console.log("✅ Results and timestamp saved for CSV export.");
     });
-    updateStatus(`✅ Scan complete: ${total} profiles checked.`);
+
+    const completionMessage = totalUsers > FREE_USER_LIMIT ? 
+        `✅ Scan complete: ${usersToProcess.length} of ${totalUsers} profiles checked (free limit)` :
+        `✅ Scan complete: ${usersToProcess.length} profiles checked`;
+    
+    updateStatus(completionMessage);
     if (DEBUG) console.log("✅ Scan complete with results:", results);
 
     // Update UI state after scan completion
@@ -133,47 +245,7 @@ export async function startScan(env) {
     if (startScanBtn) startScanBtn.style.display = "none";
     if (clearDataBtn) clearDataBtn.style.display = "inline-block";
     if (exportCsvBtn) exportCsvBtn.style.display = "inline-block";
-    if (status) status.textContent = "⚠️ Scan complete. Please clear data before rescanning. Recommended: scan only once daily.";
-}
-
-/**
- * Fetch user RSS feed and extract last post date and 90-day post count.
- */
-async function fetchUserActivity(profileUrl) {
-    try {
-        const url = new URL(profileUrl);
-        const path = url.pathname.split('?')[0];
-        let rssUrl = "";
-
-        if (path.startsWith("/@")) {
-            const username = path.split("/")[1];
-            rssUrl = `https://medium.com/feed/@${username}`;
-        } else {
-            const slug = path.split("/")[1];
-            rssUrl = `https://medium.com/feed/${slug}`;
-        }
-
-        const response = await fetch(rssUrl);
-        const text = await response.text();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, "text/xml");
-        const items = xml.querySelectorAll("item");
-
-        let posts90d = 0;
-        let lastPostDate = null;
-        const now = new Date();
-
-        items.forEach(item => {
-            const pubDate = new Date(item.querySelector("pubDate").textContent);
-            if (!lastPostDate || pubDate > lastPostDate) lastPostDate = pubDate;
-            if ((now - pubDate) / (1000 * 60 * 60 * 24) <= 90) posts90d++;
-        });
-
-        return { lastPostDate, posts90d };
-    } catch (e) {
-        console.error(`❌ Error fetching feed for ${profileUrl}:`, e);
-        return { lastPostDate: null, posts90d: 0 };
-    }
+    if (status) status.textContent = completionMessage;
 }
 
 /**

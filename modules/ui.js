@@ -59,3 +59,40 @@ export function checkAndPurgeStaleData() {
         }
     });
 }
+
+export function showThrottleUI() {
+    const goToMediumBtn = document.getElementById("goToMedium");
+    const startScanBtn = document.getElementById("startScan");
+    const exportCsvBtn = document.getElementById("exportCsv");
+    const viewLastBtn = document.getElementById("viewLast");
+    const clearDataBtn = document.getElementById("clearData");
+    const status = document.getElementById("status");
+
+    chrome.storage.local.get(["lastResults", "lastResultsTimestamp"], (data) => {
+        console.log("🔍 Debug - showThrottleUI storage check:", {
+            hasResults: !!data.lastResults,
+            hasTimestamp: !!data.lastResultsTimestamp,
+            timestamp: data.lastResultsTimestamp
+        });
+        
+        const hasResults = !!data.lastResults && !!data.lastResultsTimestamp;
+
+        // Always hide these when throttled
+        if (goToMediumBtn) goToMediumBtn.style.display = "none";
+        if (startScanBtn) startScanBtn.style.display = "none";
+        
+        // Always show clear data when throttled
+        if (clearDataBtn) clearDataBtn.style.display = "inline-block";
+        
+        // Show view/export buttons if we have results
+        if (hasResults) {
+            if (viewLastBtn) viewLastBtn.style.display = "inline-block";
+            if (exportCsvBtn) exportCsvBtn.style.display = "inline-block";
+            if (status) status.textContent = "⚠️ Scan limit reached (3 scans/24hr). View/export previous results or clear data.";
+        } else {
+            if (viewLastBtn) viewLastBtn.style.display = "none";
+            if (exportCsvBtn) exportCsvBtn.style.display = "none";
+            if (status) status.textContent = "⚠️ Scan limit reached (3 scans/24hr). Clear data to reset.";
+        }
+    });
+}
