@@ -18,20 +18,23 @@
         <button id="closeButton">Close</button>
         <button id="clearData" style="display:none;">Clear Old Data</button>
     </div>
-<div id="helpSection" style="display: none;">
-    <h3>📖 How to Use NeatFreak</h3>
-    <ol>
-        <li><strong>Navigate:</strong> Click "Go to Medium Follow Page" to open your following list</li>
-        <li><strong>Wait:</strong> Let the page load completely (you'll see all your followed users)</li>
-        <li><strong>Scan:</strong> Click "Start Scan" to analyze posting activity (takes ~1 minute)</li>
-        <li><strong>Review:</strong> View results showing who's active, occasional, or quiet</li>
-        <li><strong>Export:</strong> Download CSV to sort and organize in Excel/Sheets</li>
-        <li><strong>Posts (90 days):</strong> Number of posts found in the past 90 days, up to 10</li>
-        <li><strong>Limits:</strong> 3 scans per 24 hours to respect Medium's servers</li>
-    </ol>
-<p><strong>Color Guide:</strong> 🟩 Active (posted in 30 days), 🟨 Occasional (posted in 90 days), ⚫ Quiet (no recent posts)</p>
-</div>
-<div id="results"></div>
+    <div id="helpSection" style="display: none;">
+        <h3>📖 How to Use NeatFreak</h3>
+        <ol>
+            <li><strong>Navigate:</strong> Click "Go to Medium Follow Page" to open your following list</li>
+            <li><strong>Wait:</strong> Let the page load completely (you'll see all your followed users)</li>
+            <li><strong>Scan:</strong> Click "Start Scan" to analyze posting activity (takes ~1 minute)</li>
+            <li><strong>Review:</strong> View results showing who's active, occasional, or quiet</li>
+            <li><strong>Export:</strong> Download CSV to sort and organize in Excel/Sheets</li>
+            <li><strong>Posts (90 days):</strong> Number of posts found in the past 90 days</li>
+            <li><strong>Limits:</strong> 3 scans per 24 hours, 250 users per scan (free version)</li>
+        </ol>
+        <p><strong>Color Guide:</strong> 🟩 Active (posted in 30 days), 🟨 Occasional (posted in 90 days), ⚫ Quiet (no recent posts)</p>
+        
+        <h4>🔒 Privacy & Data</h4>
+        <p><strong>Your data stays private:</strong> NeatFreak only reads publicly available RSS feeds and stores results locally in your browser. No personal data is sent to external servers. You can clear all stored data anytime using the "Clear Old Data" button.</p>
+    </div>
+    <div id="results"></div>
 <script type="module" src="popup.js"></script>
 </body>
 </html>

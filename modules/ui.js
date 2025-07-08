@@ -1,9 +1,12 @@
 // modules/ui.js - NeatFreak for Medium
-// UI initialization and stale data management
+// UI initialization and state management
+
+/**
+ * Initialize UI based on current environment
+ */
 export function initializeUI(env) {
     if (window.isViewingLastResults) {
-        console.log("🔹 Skipping UI reset, viewing last results.");
-        return; // ✅ prevents UI reset
+        return; // Prevent UI reset when viewing last results
     }
 
     const goToMediumBtn = document.getElementById("goToMedium");
@@ -17,7 +20,7 @@ export function initializeUI(env) {
         const hasPriorData = !!data.lastResults && !!data.followedUsers && data.followedUsers.length > 0;
 
         if (env.isMedium && env.isFollowingPage) {
-            console.log("✅ On Medium Following page - enabling scan/export.");
+            // On Medium Following page - enable scan/export
             if (goToMediumBtn) goToMediumBtn.style.display = "none";
             if (startScanBtn) startScanBtn.style.display = hasPriorData ? "none" : "inline-block";
             if (exportCsvBtn) exportCsvBtn.style.display = hasPriorData ? "inline-block" : "none";
@@ -27,7 +30,7 @@ export function initializeUI(env) {
                 ? "✅ Previous data found. View or clear before rescanning."
                 : "✅ On Following page. Ready to scan.";
         } else if (env.isMedium) {
-            console.log("ℹ️ On Medium, but not on Following page.");
+            // On Medium, but not on Following page
             if (goToMediumBtn) goToMediumBtn.style.display = "inline-block";
             if (startScanBtn) startScanBtn.style.display = "none";
             if (exportCsvBtn) exportCsvBtn.style.display = "none";
@@ -35,7 +38,7 @@ export function initializeUI(env) {
             if (clearDataBtn) clearDataBtn.style.display = hasPriorData ? "inline-block" : "none";
             if (status) status.textContent = "ℹ️ On Medium. Navigate to your Following page to scan.";
         } else {
-            console.log("🚩 Not on Medium - showing Go to Medium button.");
+            // Not on Medium - show Go to Medium button
             if (goToMediumBtn) goToMediumBtn.style.display = "inline-block";
             if (startScanBtn) startScanBtn.style.display = "none";
             if (exportCsvBtn) exportCsvBtn.style.display = "none";
@@ -46,13 +49,15 @@ export function initializeUI(env) {
     });
 }
 
+/**
+ * Check and purge stale data (older than 3 days)
+ */
 export function checkAndPurgeStaleData() {
     chrome.storage.local.get(["followedUsersTimestamp"], data => {
         const now = Date.now();
         const maxAge = 1000 * 60 * 60 * 24 * 3; // 3 days
         if (data.followedUsersTimestamp && now - data.followedUsersTimestamp > maxAge) {
             chrome.storage.local.remove(["followedUsers", "followedUsersTimestamp"], () => {
-                console.log("🧹 NeatFreak: Stale followedUsers data cleared after 3 days.");
                 const status = document.getElementById("status");
                 if (status) status.textContent = "⚠️ Old data cleared. Please refresh your Following page and reopen NeatFreak to rescan.";
             });
@@ -60,6 +65,9 @@ export function checkAndPurgeStaleData() {
     });
 }
 
+/**
+ * Show UI when throttle limit is reached
+ */
 export function showThrottleUI() {
     const goToMediumBtn = document.getElementById("goToMedium");
     const startScanBtn = document.getElementById("startScan");
@@ -69,12 +77,6 @@ export function showThrottleUI() {
     const status = document.getElementById("status");
 
     chrome.storage.local.get(["lastResults", "lastResultsTimestamp"], (data) => {
-        console.log("🔍 Debug - showThrottleUI storage check:", {
-            hasResults: !!data.lastResults,
-            hasTimestamp: !!data.lastResultsTimestamp,
-            timestamp: data.lastResultsTimestamp
-        });
-        
         const hasResults = !!data.lastResults && !!data.lastResultsTimestamp;
 
         // Always hide these when throttled

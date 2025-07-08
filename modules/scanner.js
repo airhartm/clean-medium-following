@@ -1,16 +1,16 @@
 // modules/scanner.js - NeatFreak for Medium
-// Scans stored followed users, fetches user RSS feeds, tracks progress with live counter, polite throttling, color-coded output.
+// Core scanning functionality for analyzing Medium followers
 
 import { saveLastResults } from "./storage.js";
 
-const DEBUG = true; // Toggle false for release
-const FREE_USER_LIMIT = 250; // Free version limit
-const BATCH_SIZE = 10; // Process users in batches
-const BATCH_DELAY = 3000; // 3 second delay between batches
-const REQUEST_DELAY = 1500; // 1.5 seconds between individual requests
+const DEBUG = false; // Production build
+const FREE_USER_LIMIT = 250;
+const BATCH_SIZE = 10;
+const BATCH_DELAY = 3000; // 3 seconds between batches
+const REQUEST_DELAY = 1500; // 1.5 seconds between requests
 
 /**
- * Fetch user RSS feed and extract last post date, 90-day post count, and author name.
+ * Fetch user RSS feed and extract posting activity data
  */
 async function fetchUserActivity(profileUrl) {
     try {
@@ -37,11 +37,10 @@ async function fetchUserActivity(profileUrl) {
         let authorName = null;
         const now = new Date();
 
-        // Extract author name from the channel title
+        // Extract clean author name from RSS feed
         const channelTitle = xml.querySelector("channel title");
         if (channelTitle) {
             let rawName = channelTitle.textContent.trim();
-            // Remove "Stories by" prefix, " – Medium" suffix, and " on Medium" suffix
             authorName = rawName
                 .replace(/^Stories by\s+/i, '')
                 .replace(/\s+–\s+Medium$/i, '')
@@ -49,6 +48,7 @@ async function fetchUserActivity(profileUrl) {
                 .trim();
         }
 
+        // Analyze posting activity
         items.forEach(item => {
             const pubDate = new Date(item.querySelector("pubDate").textContent);
             if (!lastPostDate || pubDate > lastPostDate) lastPostDate = pubDate;
@@ -57,18 +57,17 @@ async function fetchUserActivity(profileUrl) {
 
         return { lastPostDate, posts90d, authorName };
     } catch (e) {
-        console.error(`❌ Error fetching feed for ${profileUrl}:`, e);
         return { lastPostDate: null, posts90d: 0, authorName: null };
     }
 }
 
 /**
- * Wait for followedUsers array to be available in storage.
+ * Wait for followed users data to be available in storage
  */
 export function waitForFollowedUsers(timeout = 5000, interval = 500) {
     return new Promise((resolve, reject) => {
         const start = Date.now();
-        const maxAge = 1000 * 60 * 60 * 24 * 3; // 3 days in ms
+        const maxAge = 1000 * 60 * 60 * 24 * 3; // 3 days
 
         const check = () => {
             chrome.storage.local.get(["followedUsers", "followedUsersTimestamp"], (data) => {
@@ -77,13 +76,11 @@ export function waitForFollowedUsers(timeout = 5000, interval = 500) {
 
                 if (data.followedUsers && data.followedUsers.length > 0) {
                     if (age !== null && age > maxAge) {
-                        // Stale data detected
+                        // Clear stale data
                         chrome.storage.local.remove(["followedUsers", "followedUsersTimestamp"], () => {
-                            console.log("🧹 Stale followedUsers data cleared after 3 days.");
                             reject(new Error("⚠️ Followed users data is stale. Please refresh your Following page and reopen NeatFreak to rescan."));
                         });
                     } else {
-                        if (DEBUG) console.log("✅ Followed users loaded for scan:", data.followedUsers.length);
                         resolve(data.followedUsers);
                     }
                 } else if (Date.now() - start >= timeout) {
@@ -98,11 +95,10 @@ export function waitForFollowedUsers(timeout = 5000, interval = 500) {
 }
 
 /**
- * Start scan using environment validation.
+ * Main scanning function with batch processing
  */
 export async function startScan(env) {
     const resultsContainer = document.getElementById("results");
-    const statusElem = document.getElementById("status");
 
     if (!env.isMedium || !env.isFollowingPage) {
         updateStatus("❌ Please navigate to your Medium Following page to scan.");
@@ -125,7 +121,7 @@ export async function startScan(env) {
         return;
     }
 
-    // Apply user limit for free version
+    // Apply free version limit
     const totalUsers = followedUsers.length;
     const usersToProcess = followedUsers.slice(0, FREE_USER_LIMIT);
     const limitMessage = totalUsers > FREE_USER_LIMIT ? 
@@ -136,7 +132,7 @@ export async function startScan(env) {
     const results = [];
     let processed = 0;
 
-    // Process users in batches
+    // Process users in batches to respect server limits
     for (let batchStart = 0; batchStart < usersToProcess.length; batchStart += BATCH_SIZE) {
         const batch = usersToProcess.slice(batchStart, Math.min(batchStart + BATCH_SIZE, usersToProcess.length));
         const batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
@@ -161,20 +157,20 @@ export async function startScan(env) {
 
             results.push({ profileUrl, lastPost, posts90d, activity, authorName });
 
-            // Delay between individual requests
+            // Respectful delay between requests
             if (processed < usersToProcess.length) {
                 await new Promise(res => setTimeout(res, REQUEST_DELAY));
             }
         }
 
-        // Delay between batches (except after the last batch)
+        // Delay between batches
         if (batchStart + BATCH_SIZE < usersToProcess.length) {
             updateStatus(`⏸️ Waiting ${BATCH_DELAY/1000}s between batches to respect Medium's servers...`);
             await new Promise(res => setTimeout(res, BATCH_DELAY));
         }
     }
 
-    // Sort by activity level first, then by most recent post date
+    // Sort by activity level, then by recency
     results.sort((a, b) => {
         const activityPriority = {
             "🟩 Active": 1,
@@ -195,7 +191,7 @@ export async function startScan(env) {
         return new Date(b.lastPost) - new Date(a.lastPost);
     });
 
-    // Build HTML table AFTER sorting
+    // Generate results table
     let html = `
         <table>
             <tr><th>Author</th><th>Last Post</th><th>Posts (90 days)</th><th>Activity</th></tr>`;
@@ -221,12 +217,10 @@ export async function startScan(env) {
 
     resultsContainer.innerHTML = html;
 
-    // Save results for CSV export
+    // Save results for export
     chrome.storage.local.set({
         lastResults: html,
         lastResultsTimestamp: Date.now()
-    }, () => {
-        if (DEBUG) console.log("✅ Results and timestamp saved for CSV export.");
     });
 
     const completionMessage = totalUsers > FREE_USER_LIMIT ? 
@@ -234,9 +228,8 @@ export async function startScan(env) {
         `✅ Scan complete: ${usersToProcess.length} profiles checked`;
     
     updateStatus(completionMessage);
-    if (DEBUG) console.log("✅ Scan complete with results:", results);
 
-    // Update UI state after scan completion
+    // Update UI state after completion
     const startScanBtn = document.getElementById("startScan");
     const clearDataBtn = document.getElementById("clearData");
     const exportCsvBtn = document.getElementById("exportCsv");
@@ -249,7 +242,7 @@ export async function startScan(env) {
 }
 
 /**
- * Utility: Calculate days since a date.
+ * Calculate days since a given date
  */
 function daysSince(date) {
     const now = new Date();
@@ -257,7 +250,7 @@ function daysSince(date) {
 }
 
 /**
- * Utility: Update status display in popup.
+ * Update status display in popup
  */
 function updateStatus(message) {
     const status = document.getElementById("status");

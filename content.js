@@ -1,5 +1,5 @@
 // content.js for NeatFreak
-// Auto-scroll, extract followed users, and send to background for stable storage
+// Auto-scroll and extract followed users from Medium following page
 
 // ================================
 // AUTO-CLICK "SEE ALL" FUNCTION
@@ -10,12 +10,10 @@ async function autoClickSeeAll(timeout = 10000) {
         const maxTries = timeout / interval;
         let tries = 0;
 
-        console.log("🔍 Looking for 'See all' button...");
-
         const clickInterval = setInterval(() => {
             tries++;
             
-            // Look for any element containing "See all" text
+            // Look for "See all" button
             const allElements = document.querySelectorAll('*');
             let seeAllButton = null;
             
@@ -31,18 +29,16 @@ async function autoClickSeeAll(timeout = 10000) {
             }
             
             if (seeAllButton) {
-                console.log("✅ 'See all' button found, clicking...");
                 try {
                     seeAllButton.click();
                     clearInterval(clickInterval);
                     setTimeout(() => {
                         resolve(true);
-                    }, 2000); // Wait for content to load
+                    }, 2000);
                 } catch (e) {
-                    console.error("❌ Error clicking 'See all' button:", e);
+                    // Silent fail
                 }
             } else if (tries >= maxTries) {
-                console.warn("⚠️ 'See all' button not found within timeout.");
                 clearInterval(clickInterval);
                 resolve(false);
             }
@@ -54,17 +50,14 @@ async function autoClickSeeAll(timeout = 10000) {
 // AUTO-SCROLL AND EXTRACT FUNCTION
 // ================================
 async function autoScrollAndExtract() {
-    const scrollStep = 200; // Reduced for smoother scrolling
-    const delay = 600; // Increased delay to be more respectful
-    const maxAttempts = 40; // Increased to compensate for smaller steps
+    const scrollStep = 200;
+    const delay = 600;
+    const maxAttempts = 40;
     let lastUserCount = 0;
-    let stableCount = 0; // Track how many times count stayed the same
-
-    console.log("🔄 Starting auto-scroll to load all followed users...");
+    let stableCount = 0;
 
     // Scroll through the page to load all users
     for (let i = 0; i < maxAttempts; i++) {
-        // Use smooth scrolling instead of instant jumping
         window.scrollBy({ top: scrollStep, behavior: 'smooth' });
         await new Promise(resolve => setTimeout(resolve, delay));
 
@@ -72,19 +65,16 @@ async function autoScrollAndExtract() {
 
         if (currentUsers === lastUserCount) {
             stableCount++;
-            // Wait for 3 stable iterations before concluding we're done
             if (stableCount >= 3) {
-                console.log(`✅ Auto-scroll complete after ${i + 1} iterations with ${currentUsers} user links loaded.`);
                 break;
             }
         } else {
-            stableCount = 0; // Reset if count changed
+            stableCount = 0;
         }
         lastUserCount = currentUsers;
     }
 
     // Extract user URLs from the page
-    console.log("🔍 Extracting followed user URLs...");
     const followedUsers = new Set();
     
     document.querySelectorAll('a[href*="/@"]').forEach(link => {
@@ -104,27 +94,20 @@ async function autoScrollAndExtract() {
     });
 
     const followedUsersArray = Array.from(followedUsers);
-    console.log(`✅ Extracted ${followedUsersArray.length} followed users`);
 
-    // Save to storage with verification
+    // Save to storage
     try {
         chrome.storage.local.set({ 
             followedUsers: followedUsersArray,
             followedUsersTimestamp: Date.now()
         }, () => {
-            console.log("✅ Followed users saved to storage");
-            
             // Verify the save worked
             chrome.storage.local.get("followedUsers", data => {
-                if (data.followedUsers && data.followedUsers.length > 0) {
-                    console.log("✅ Verified storage:", data.followedUsers.length, "users");
-                } else {
-                    console.error("❌ Storage verification failed");
-                }
+                // Silent verification - no console logs in production
             });
         });
     } catch (e) {
-        console.error("❌ Error saving to storage:", e);
+        // Silent fail in production
     }
 }
 
@@ -132,7 +115,7 @@ async function autoScrollAndExtract() {
 // MAIN EXECUTION
 // ================================
 (async () => {
-    // First try to auto-click "See all"
+    // Try to auto-click "See all"
     const clicked = await autoClickSeeAll();
     
     // If auto-click failed, alert user
@@ -140,6 +123,6 @@ async function autoScrollAndExtract() {
         alert("⚠️ Please click 'See all' on your Following page to let NeatFreak scan your full list.");
     }
     
-    // Then scroll and extract users
+    // Scroll and extract users
     await autoScrollAndExtract();
 })();

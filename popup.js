@@ -1,5 +1,5 @@
-const DEBUG = true; // Toggle false for release builds
-const SCAN_LIMIT = 3; // Max scans
+const DEBUG = false; // Production build
+const SCAN_LIMIT = 3; // Max scans per 24 hours
 const SCAN_WINDOW_MS = 1000 * 60 * 60 * 24; // 24 hours
 
 import { checkEnvironment } from "./modules/environment.js";
@@ -35,24 +35,19 @@ document.getElementById("clearData").addEventListener("click", () => {
 
 // DOM Ready
 document.addEventListener("DOMContentLoaded", async () => {
-    if (DEBUG) console.log("🟢 NeatFreak: DOMContentLoaded triggered");
-
     try {
         const env = await checkEnvironment();
-        if (DEBUG) console.log("✅ Environment detected:", env);
-
+        
         initializeUI(env);
         checkAndPurgeStaleData();
 
-        // Scan throttling (using scanRunTimestamps)
+        // Scan throttling
         chrome.storage.local.get(["scanRunTimestamps"], (data) => {
             const now = Date.now();
             const timestamps = (data.scanRunTimestamps || []).filter(ts => now - ts < SCAN_WINDOW_MS);
 
             if (timestamps.length >= SCAN_LIMIT) {
-                console.log("⚠️ Throttle active: 3 scans/24hr reached, blocking new scans.");
                 showThrottleUI();
-                // Don't return here - still need to attach event listener
             }
 
             // Always attach the event listener, but check throttle when clicked
@@ -61,7 +56,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 startScanBtn.addEventListener("click", async () => {
                     // Re-check environment at click time
                     const currentEnv = await checkEnvironment();
-                    console.log("🔍 Environment check at scan time:", currentEnv);
                     
                     // Re-check throttle at click time
                     chrome.storage.local.get(["scanRunTimestamps"], (clickData) => {
@@ -69,15 +63,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const clickTimestamps = (clickData.scanRunTimestamps || []).filter(ts => clickNow - ts < SCAN_WINDOW_MS);
                         
                         if (clickTimestamps.length >= SCAN_LIMIT) {
-                            console.log("⚠️ Scan blocked: throttle still active");
                             showThrottleUI();
                             return;
                         }
                         
-                        console.log("▶️ Start Scan clicked.");
                         clickTimestamps.push(Date.now());
                         chrome.storage.local.set({ scanRunTimestamps: clickTimestamps });
-                        startScan(currentEnv); // Use fresh environment check
+                        startScan(currentEnv);
                     });
                 });
             }
@@ -92,18 +84,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                 setTimeout(async () => {
                     try {
                         const env = await checkEnvironment();
-                        console.log("✅ Environment re-checked after navigation:", env);
                         initializeUI(env);
                     } catch (e) {
-                        console.error("❌ Error re-checking environment:", e);
+                        // Silent fail in production
                     }
-                }, 2000); // Wait 2 seconds for page to load
+                }, 2000);
             });
         });
 
         // Export CSV
         document.getElementById("exportCsv")?.addEventListener("click", () => {
-            console.log("💾 Export CSV clicked.");
             exportCsv();
         });
 
@@ -116,7 +106,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             if (helpClickCount === 1) {
                 helpClickTimer = setTimeout(() => {
-                    helpClickCount = 0; // Reset if not triple-clicked quickly
+                    helpClickCount = 0;
                 }, 2000);
             }
             
@@ -126,16 +116,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 helpClickCount = 0;
                 
                 chrome.storage.local.remove(["scanRunTimestamps"], () => {
-                    console.log("🔓 DEV: Throttle bypass activated - scan limits reset");
-                    
                     // Re-check environment and initialize UI properly
                     checkEnvironment().then((currentEnv) => {
-                        console.log("🔍 Re-checking environment after throttle bypass:", currentEnv);
                         initializeUI(currentEnv);
                         document.getElementById("status").textContent = "🔓 DEV: Throttle reset.";
                     }).catch((e) => {
-                        console.error("❌ Error re-checking environment after bypass:", e);
-                        // Fallback to simple message
                         document.getElementById("status").textContent = "🔓 DEV: Throttle reset. Please reload popup.";
                     });
                 });
@@ -144,12 +129,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Original help toggle functionality
             const helpSection = document.getElementById("helpSection");
             helpSection.style.display = helpSection.style.display === "none" ? "block" : "none";
-            console.log("❓ Help toggled:", helpSection.style.display);
         });
 
         // Close Button
         document.getElementById("closeButton")?.addEventListener("click", () => {
-            console.log("❌ Close clicked.");
             window.close();
         });
 
@@ -175,10 +158,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
     } catch (e) {
-        console.error("❌ Error initializing NeatFreak popup:", e);
         const resultsContainer = document.getElementById("results");
         if (resultsContainer) {
-            resultsContainer.textContent = "Error. Please reload NeatFreak or check the console.";
+            resultsContainer.textContent = "Error loading extension. Please refresh and try again.";
         }
     }
 });
