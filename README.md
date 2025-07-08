@@ -1,8 +1,8 @@
 # 🧹 NeatFreak for Medium
 
-**Easily audit and tidy your Medium Following list.**
+**Easily audit and tidy the online list of people that you follow, or subscribe to, on Medium.com.**
 
-A Chrome extension that helps you analyze your Medium following list by identifying inactive accounts and providing detailed activity insights. Perfect for curating a high-quality reading feed.
+A Chrome extension that helps you analyze your Medium "following" list by identifying inactive accounts and providing detailed activity insights. Perfect for curating a high-quality reading feed.
 
 ## 🚀 Features
 
@@ -89,7 +89,7 @@ A Chrome extension that helps you analyze your Medium following list by identify
 ### Browser Compatibility
 - Chrome (primary)
 - Edge (Chromium-based)
-- Other Chromium browsers
+- Other Chromium-based browsers such as Vivaldi
 
 ## 🛠️ Development
 
@@ -178,7 +178,7 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Roadmap
 
-### Open Source Core Features
+### Open Source Core Features - Always Free
 - ✅ Activity analysis and categorization
 - ✅ CSV export functionality
 - ✅ Basic UI and scanning logic
@@ -186,17 +186,16 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 - 🔄 Enhanced error handling
 - 🔄 Additional export formats
 
-### Premium Features (Server-Side Service)
+### Future Premium Features (Server-Side Service)
 - 🔐 **Unlimited user scanning** (no 250-user limit)
 - 🔐 **Faster scanning** with priority server access
 - 🔐 **Historical tracking** of network changes over time
-- 🔐 **Advanced analytics** and insights
 - 🔐 **Bulk management tools** and unfollow suggestions
 - 🔐 **Team/business features** for multiple accounts
 - 🔐 **API access** for integration with other tools
 - 🔐 **Priority email support**
 
-*Premium features are implemented as a paid service to support ongoing development and server costs while keeping the core extension free and open source.*
+*Premium features will be implemented as a paid service to support ongoing development and server costs while keeping the core extension free and open source.*
 
 ---
 
